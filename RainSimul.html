@@ -1,0 +1,411 @@
+<!DocType html>
+<html>
+<head>
+    <title>Rain simul</title>
+    <style>
+	
+		body{
+			background-color: lightgray;
+		}
+		
+		input{
+			width: 80px;
+		}
+        canvas {
+			margin-left: 200px;
+			margin-top: 60px;
+			border: 1px solid black;
+			position: absolute;
+        }
+		
+		.columnDiv{
+			-webkit-column-count: 3; /* Chrome, Safari, Opera */
+			-moz-column-count: 3; 
+			column-count:3;
+		}
+		
+		label {
+		  display: inline-block;
+		  width: 180px;
+		  text-align: right;
+		  padding-bottom:5px;
+		}
+		
+		
+		.subjectAColor{
+			color: salmon;
+		}
+		
+		.subjectB{
+			color: green;
+		}
+		
+		.center {
+			display:block;
+			margin: auto;
+			width: 60%;
+			padding: 10px;
+		}
+		
+    </style>
+</head>
+<body>	
+	<div class="columnDiv">
+	<label>Cantidad de gotas</label>
+	<input id='dotsAmount' type="number" value="1300"/>
+	<br/>
+	<label>Velocidad del viento</label>
+	<input id='windSpeed' type="number" value="0"/>
+	<br/>
+	<label>Velocidad ca&iacute;da de gotas</label>
+	<input id='dropSpeed' type="number" value="10"/>
+	<br/>
+	<label>Distancia recorrida:</label>
+	<input type="number" value="500" readonly/>
+	<br/>
+	<label class="subjectAColor">Velocidad Sujeto A</label>
+	<input id='subjectASpeed' type="number" value="-1"/>
+	<br/>
+	<label class="subjectAColor">Altura Sujeto A</label>
+	<input id='subjectAHeight' type="number" value="18"/>
+	<br/>
+	<label class="subjectAColor">Ancho Sujeto A</label>
+	<input id='subjectAWidth' type="number" value="5"/>
+	<br/>
+	<label class="subjectB">Velocidad Sujeto B</label>
+	<input id='subjectBSpeed' type="number" value="-3"/>
+	<br/>
+	
+	<label class="subjectB">Altura Sujeto B</label>
+	<input id='subjectBHeight' type="number" value="18"/>
+	<br/>
+	
+	<label class="subjectB">Ancho Sujeto B</label>
+	<input id='subjectBWidth' type="number" value="5"/>
+	<br/>
+	
+	<button id="btnIniciar">Iniciar</button>
+	</div>
+	
+    <canvas id="dotsCanvas" width="500" height="200"></canvas>
+	
+	<div class='center'>
+	<span class="subjectAColor">Gotas ca&iacute;das sobre Sujeto A:</span>
+	<a id="dropsSubjectA"></a>
+	<br/>
+	<span class="subjectB">Gotas ca&iacute;das sobre Sujeto B:</span>
+	<a id='dropsSubjectB'></a>
+	</div>
+	
+	
+
+    <script src="jquery-2.1.4.min.js"></script>
+
+    <script>				
+		$( document ).ready(function() {
+    
+
+        var canvasElement = document.getElementById("dotsCanvas");
+		
+		var MAX_X = canvasElement.width;
+		var MAX_Y = canvasElement.height;
+		var DOTS_AMOUNT = 1300;
+		
+		
+		var WIND_SPEED = 0;
+		var FALL_SPEED = 10;
+		
+		var SUBJECT_A_SPEED = -1;
+		var SUBJECT_B_SPEED = -3;
+		
+		var JOIN_THRESHOLD = 10;
+		
+		var dropsSubjectA = 0;
+		var dropsSubjectB = 0;
+		
+		var DOT_COLOR = {"R": 0, "G": 0, "B": 255, "A": 255};
+		var BACKGROUND_COLOR = {"R": 0, "G": 0, "B": 0, "A": 255};
+		var LINE_COLOR = {"R": 0, "G": 255, "B": 100, "A": 0.2};
+		
+
+		var subjectA = {"x": MAX_X
+						, "y": MAX_Y
+						, "speedX": SUBJECT_A_SPEED
+						, "width": 5
+						, "height": 18
+						, "color": {"R": 250, "G": 128, "B": 114, "A": 1}
+						, "canCollectDrops": true
+						}
+						
+		var subjectB = {"x": MAX_X
+						, "y": MAX_Y
+						, "speedX": SUBJECT_B_SPEED
+						, "width": 5
+						, "height": 18
+						, "color": {"R": 0, "G": 128, "B": 0, "A": 1}
+						, "canCollectDrops": true
+						}
+		
+        var canvasContext = canvasElement.getContext("2d");
+		var canvasData = canvasContext.getImageData(0, 0, MAX_X, MAX_Y);
+		
+		var fps = 25;
+		
+        var dotsArray = [];	
+
+		fillBackground();
+		initDotsArray();	
+		canvasContext.strokeStyle = 'rgba('+LINE_COLOR.R +','+LINE_COLOR.G+','+LINE_COLOR.B+','+LINE_COLOR.A+')';
+		updateCanvas();	
+		var intervalHandle;// = setInterval(moveDots, 1000/fps);
+				
+		function updateUIInfo(){
+			document.getElementById('dropsSubjectA').innerHTML = dropsSubjectA;
+			document.getElementById('dropsSubjectB').innerHTML = dropsSubjectB;
+		}
+		
+		function drawSubjects(){
+			var colorA = subjectA.color;
+			canvasContext.beginPath();
+			canvasContext.lineWidth = 3;
+			canvasContext.strokeStyle = 'rgba('+colorA.R +','+colorA.G+','+colorA.B+','+colorA.A+')';
+			canvasContext.rect(subjectA.x - (subjectA.width/2), subjectA.y-(subjectA.height/2), subjectA.width, subjectA.height);		
+			canvasContext.stroke();
+			
+			var colorB = subjectB.color;
+			canvasContext.beginPath();
+			canvasContext.lineWidth = 3;
+			canvasContext.strokeStyle = 'rgba('+colorB.R +','+colorB.G+','+colorB.B+','+colorB.A+')';
+			canvasContext.rect(subjectB.x - (subjectB.width/2), subjectB.y-(subjectB.height/2), subjectB.width, subjectB.height);		
+			canvasContext.stroke();
+		}
+		
+		function updateSubjectsPosition(){		
+			if(subjectA.x - (subjectA.width/2) > 0)
+				subjectA.x += subjectA.speedX;
+			else
+				subjectA.canCollectDrops = false;
+				
+			if(subjectB.x - (subjectB.width/2) > 0)
+				subjectB.x += subjectB.speedX;
+			else 
+				subjectB.canCollectDrops = false;				
+				
+		}
+		
+		function moveDots(){
+			clearPixelsBuffer();			
+			updateCanvas();	
+			
+			updateDotsPositions();
+			updateSubjectsPosition();
+			fillPixelsBuffer();
+			
+			updateCanvas();
+			
+			drawSubjects();
+			
+			if(!subjectA.canCollectDrops && !subjectB.canCollectDrops)
+				clearInterval(intervalHandle);
+				
+			updateUIInfo();
+			//joinNeighbourPixels();
+		}
+		
+		function fillBackground(){
+			for (var i=0;i<canvasData.data.length;i+=4)
+			{
+			  canvasData.data[i+0]=BACKGROUND_COLOR.R;
+			  canvasData.data[i+1]=BACKGROUND_COLOR.G;
+			  canvasData.data[i+2]=BACKGROUND_COLOR.B;
+			  canvasData.data[i+3]=BACKGROUND_COLOR.A;
+			}
+		}
+		
+		function joinNeighbourPixels(){
+			for(var i in dotsArray){
+				for(var j in dotsArray){
+					if(i==j)
+						continue;
+					if(Math.abs(dotsArray[i].x - dotsArray[j].x) <= JOIN_THRESHOLD && Math.abs(dotsArray[i].y - dotsArray[j].y) <= JOIN_THRESHOLD){
+						canvasContext.beginPath();
+						canvasContext.strokeStyle = 'rgba('+LINE_COLOR.R +','+LINE_COLOR.G+','+LINE_COLOR.B+','+LINE_COLOR.A+')';
+						canvasContext.moveTo(dotsArray[i].x,dotsArray[i].y);
+						canvasContext.lineTo(dotsArray[j].x,dotsArray[j].y);
+						canvasContext.stroke();
+					}
+				}			
+			}
+		}
+		
+		function updateDotsPositions(){
+			for(var i in dotsArray){
+				dotsArray[i].x += dotsArray[i].speedX;
+				dotsArray[i].y += dotsArray[i].speedY;		
+
+				
+				if(subjectA.canCollectDrops && !dotsArray[i].droppedOnA && dotsArray[i].x >= subjectA.x - (subjectA.width/2)  && dotsArray[i].x <= subjectA.x + (subjectA.width/2)){
+					if(dotsArray[i].y >= subjectA.y - (subjectA.height/2)){
+						dotsArray[i].droppedOnA = true;
+						dropsSubjectA++;
+					}
+				}
+				
+				if(subjectB.canCollectDrops && !dotsArray[i].droppedOnB && dotsArray[i].x >= subjectB.x - (subjectB.width/2)  && dotsArray[i].x <= subjectB.x + (subjectB.width/2)){
+					if(dotsArray[i].y >= subjectB.y - (subjectB.height/2)){
+						dotsArray[i].droppedOnB = true;
+						dropsSubjectB++;
+					}
+				}
+				
+				if(dotsArray[i].droppedOnA && dotsArray[i].y < MAX_Y/2){
+					dotsArray[i].droppedOnA = false;
+				}
+				
+				if(dotsArray[i].droppedOnB && dotsArray[i].y < MAX_Y/2){
+					dotsArray[i].droppedOnB = false;
+				}
+
+				if(dotsArray[i].x >= MAX_X)
+					dotsArray[i].x = 0;
+				if(dotsArray[i].y >= MAX_Y){
+					dotsArray[i].y = getRandomInt(0,FALL_SPEED);
+					dotsArray[i].x = getRandomInt(0,MAX_X);
+				}
+					
+				if(dotsArray[i].x < 0)
+					dotsArray[i].x = MAX_X;	
+				if(dotsArray[i].y < 0)
+					dotsArray[i].y = MAX_Y;			
+			}		
+		}		
+		
+		function fillPixelsBuffer(){			
+			for(var i in dotsArray){
+				fillPixelBuffer(dotsArray[i].x, dotsArray[i].y, DOT_COLOR.R, DOT_COLOR.G, DOT_COLOR.B, DOT_COLOR.A);
+			}
+		}
+		
+		function clearPixelsBuffer(){		
+			for(var i in dotsArray){
+				clearPixelBuffer(dotsArray[i].x, dotsArray[i].y);
+			}
+		}
+		
+		function clearPixelBuffer(x, y){
+			var index = (x + y * MAX_X) * 4;
+
+			canvasData.data[index + 0] = BACKGROUND_COLOR.R;
+			canvasData.data[index + 1] = BACKGROUND_COLOR.G;
+			canvasData.data[index + 2] = BACKGROUND_COLOR.B;
+			canvasData.data[index + 3] = BACKGROUND_COLOR.A;
+		}
+		
+		function fillPixelBuffer(x, y, r, g, b, a) {
+			var index = (x + y * MAX_X) * 4;
+
+			canvasData.data[index + 0] = r;
+			canvasData.data[index + 1] = g;
+			canvasData.data[index + 2] = b;
+			canvasData.data[index + 3] = a;
+		}
+		
+		function updateCanvas() {
+			canvasContext.putImageData(canvasData, 0, 0);
+		}
+		
+		function initDotsArray(){
+			for(var i = 0; i < DOTS_AMOUNT; i++){
+				dotsArray.push(generateRandPos());				
+			}
+			orderDotsArray();
+		}
+		
+		function orderDotsArray(){
+			dotsArray.sort(
+				function (a, b){
+					if(a.x == b.x && a.y == b.y)
+						return 0;
+					if(a.x > b.x && a.y > b.y)
+						return 1;
+					if(a.x < b.x && a.y < b.y)
+						return -1;
+					if(a.x > b.x && a.y < b.y)
+						return -1;
+					if(a.x < b.x && a.y > b.y)
+						return 1;
+				}
+			);
+		}
+		
+		function generateRandPos(){
+			if(WIND_SPEED<0){
+				return {"x": getRandomInt(0,MAX_X)
+						, "y": getRandomInt(0,MAX_Y)
+						, "speedX": getRandomInt(WIND_SPEED,-1)
+						, "speedY": FALL_SPEED
+						, "droppedOnA": false
+						, "droppedOnB": false
+						};		
+			}
+					
+			return {"x": getRandomInt(0,MAX_X)
+					, "y": getRandomInt(0,MAX_Y)
+					, "speedX": getRandomInt(1,WIND_SPEED)
+					, "speedY": FALL_SPEED
+					, "droppedOnA": false
+					, "droppedOnB": false
+					};
+		}
+		
+		function getRandomInt(min, max) {
+			if(max<0){
+				return Math.floor(Math.random() * (min - max)) + max;
+			}	
+		    return Math.floor(Math.random() * (max - min)) + min;
+		}
+		
+		function start(){
+			if(intervalHandle)
+				clearInterval(intervalHandle);
+			dotsArray = [];	
+
+			DOTS_AMOUNT = parseInt($('#dotsAmount').val());
+			WIND_SPEED = parseInt($('#windSpeed').val());
+			FALL_SPEED = parseInt($('#dropSpeed').val());
+			SUBJECT_A_SPEED = parseInt($('#subjectASpeed').val());
+			SUBJECT_B_SPEED = parseInt($('#subjectBSpeed').val());
+			
+			fillBackground();
+			initDotsArray();	
+			canvasContext.strokeStyle = 'rgba('+LINE_COLOR.R +','+LINE_COLOR.G+','+LINE_COLOR.B+','+LINE_COLOR.A+')';
+			
+			subjectA.x = MAX_X;
+			subjectB.x = MAX_X;
+			subjectA.speedX = SUBJECT_A_SPEED;
+			subjectB.speedX = SUBJECT_B_SPEED;
+			subjectA.canCollectDrops = true;
+			subjectB.canCollectDrops = true;
+			subjectA.height = parseInt($('#subjectAHeight').val());
+			subjectB.height = parseInt($('#subjectBHeight').val());
+			subjectA.width = parseInt($('#subjectAWidth').val());
+			subjectB.width = parseInt($('#subjectBWidth').val());
+		
+			dropsSubjectA = 0;
+			dropsSubjectB = 0;
+			intervalHandle = setInterval(moveDots, 1000/fps);
+		
+		}
+
+		$('#btnIniciar').on('click', start);
+
+		
+		});
+
+		
+		
+
+    </script>
+</body>
+
+</html>
